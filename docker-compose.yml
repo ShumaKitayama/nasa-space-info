@@ -1,0 +1,13 @@
+services:
+  backend:
+    build: ./backend
+    environment:
+      - NASA_API_KEY=ZZt02tIW2YnG7otQu0FUkIxuxKh4bheIC2ItaJRM
+    ports:
+      - "8080:8080"
+  frontend:
+    build: ./frontend
+    environment:
+      - REACT_APP_NASA_API_KEY=ZZt02tIW2YnG7otQu0FUkIxuxKh4bheIC2ItaJRM
+    ports:
+      - "3000:3000"

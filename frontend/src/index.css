@@ -1,0 +1,41 @@
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: radial-gradient(circle at center, #0b3d91, #000000);
+    color: white;
+}
+
+header {
+    background-color: rgba(0, 0, 0, 0.8);
+    padding: 15px 20px; /* 高さを調整 */
+    position: fixed;
+    width: 100%;
+    top: 0;
+    z-index: 1000;
+}
+
+header ul {
+    display: flex;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+header li {
+    margin-right: 15px;
+}
+
+header a {
+    color: #00bfff;
+    text-decoration: none;
+    font-size: 18px;
+}
+
+header a:hover {
+    text-decoration: underline;
+}
+
+main {
+    margin-top: 120px; /* ヘッダーの高さを確保 */
+    padding: 20px;
+}
