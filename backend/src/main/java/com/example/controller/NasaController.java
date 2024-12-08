@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.Map;
 
 
@@ -48,11 +50,32 @@ public class NasaController {
 
     @GetMapping("/neows")
     public Mono<Map<String, Object>> getNeoWsData(
-            @RequestParam("start_date") String startDate,
-            @RequestParam("end_date") String endDate) {
-        return nasaService.getNeoWsData(startDate, endDate);
-    }
+            @RequestParam("start_date") String startDateStr,
+            @RequestParam("end_date") String endDateStr) {
+        // 追加バリデーション: 日付が正しい形式かつ将来日付ではないこと
+        LocalDate startDate;
+        LocalDate endDate;
+        try {
+            startDate = LocalDate.parse(startDateStr);
+            endDate = LocalDate.parse(endDateStr);
+        } catch (DateTimeParseException e) {
+            logger.error("Invalid date format: start_date={}, end_date={}", startDateStr, endDateStr);
+            return Mono.error(new IllegalArgumentException("Invalid date format. Use YYYY-MM-DD."));
+        }
 
+        if (startDate.isAfter(endDate)) {
+            logger.error("Start date is after end date: start_date={}, end_date={}", startDateStr, endDateStr);
+            return Mono.error(new IllegalArgumentException("Start date must be before or equal to end date."));
+        }
+
+        LocalDate now = LocalDate.now();
+        if (startDate.isAfter(now) || endDate.isAfter(now)) {
+            logger.error("Date range includes future dates not supported by NEO API: start_date={}, end_date={}", startDateStr, endDateStr);
+            return Mono.error(new IllegalArgumentException("Date range cannot include future dates."));
+        }
+
+        return nasaService.getNeoWsData(startDateStr, endDateStr);
+    }
 
     @GetMapping("/iss-location")
     public Mono<String> getIssLocation() {

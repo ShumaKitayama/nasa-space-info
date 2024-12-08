@@ -59,7 +59,7 @@ public class NasaService {
     public Mono<Map<String, Object>> getNeoWsData(String startDate, String endDate) {
         logger.info("Fetching NeoWs data for start_date={} and end_date={}", startDate, endDate);
 
-        // 日付フォーマットの検証
+        // 日付フォーマットの再確認(正規表現はコントローラ側で済んでいるが一応残す)
         if (!startDate.matches("\\d{4}-\\d{2}-\\d{2}") || !endDate.matches("\\d{4}-\\d{2}-\\d{2}")) {
             logger.error("Invalid date format: start_date={}, end_date={}", startDate, endDate);
             return Mono.error(new IllegalArgumentException("Invalid date format. Use YYYY-MM-DD."));
@@ -79,36 +79,47 @@ public class NasaService {
                         .build())
                 .retrieve()
                 .bodyToMono(JsonNode.class)
-                .map(this::processNeoData)
+                .flatMap(response -> {
+                    // エラーチェック: `near_earth_objects`が無ければNASA側エラーとみなす
+                    if (!response.has("near_earth_objects")) {
+                        logger.error("Invalid API response (no near_earth_objects): {}", response.toPrettyString());
+                        return Mono.error(new IllegalArgumentException("API returned invalid response or error. Check logs."));
+                    }
+                    return Mono.just(processNeoData(response));
+                })
                 .doOnError(error -> logger.error("Error fetching NeoWs data: {}", error.getMessage()));
     }
 
-
     private Map<String, Object> processNeoData(JsonNode data) {
         logger.info("Processing NEO WS data...");
-
-        if (!data.has("near_earth_objects")) {
-            throw new IllegalArgumentException("Invalid API response: Missing 'near_earth_objects'");
-        }
 
         Map<String, Object> result = new HashMap<>();
         Map<String, Integer> sizeCategories = new HashMap<>();
         Map<String, Integer> speedCategories = new HashMap<>();
 
+        // `near_earth_objects`を巡回
         data.get("near_earth_objects").fields().forEachRemaining(entry -> {
             entry.getValue().forEach(neo -> {
                 double minDiameter = neo.get("estimated_diameter").get("kilometers").get("estimated_diameter_min").asDouble();
                 double speed = neo.get("close_approach_data").get(0).get("relative_velocity").get("kilometers_per_hour").asDouble();
 
                 // サイズ分類
-                if (minDiameter < 0.5) sizeCategories.merge("Small (<0.5km)", 1, Integer::sum);
-                else if (minDiameter < 1) sizeCategories.merge("Medium (0.5-1km)", 1, Integer::sum);
-                else sizeCategories.merge("Large (>1km)", 1, Integer::sum);
+                if (minDiameter < 0.5) {
+                    sizeCategories.merge("Small (<0.5km)", 1, Integer::sum);
+                } else if (minDiameter < 1) {
+                    sizeCategories.merge("Medium (0.5-1km)", 1, Integer::sum);
+                } else {
+                    sizeCategories.merge("Large (>1km)", 1, Integer::sum);
+                }
 
                 // 速度分類
-                if (speed < 10000) speedCategories.merge("Slow (<10k km/h)", 1, Integer::sum);
-                else if (speed < 30000) speedCategories.merge("Moderate (10k-30k km/h)", 1, Integer::sum);
-                else speedCategories.merge("Fast (>30k km/h)", 1, Integer::sum);
+                if (speed < 10000) {
+                    speedCategories.merge("Slow (<10k km/h)", 1, Integer::sum);
+                } else if (speed < 30000) {
+                    speedCategories.merge("Moderate (10k-30k km/h)", 1, Integer::sum);
+                } else {
+                    speedCategories.merge("Fast (>30k km/h)", 1, Integer::sum);
+                }
             });
         });
 
@@ -123,6 +134,7 @@ public class NasaService {
 
         return result;
     }
+
 
 
     public Mono<String> getIssLocation() {
